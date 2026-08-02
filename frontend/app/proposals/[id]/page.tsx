@@ -1,8 +1,8 @@
 "use client";
 
-import { use } from "react";
 import Link from "next/link";
 import { useReadContract, useWriteContract, useAccount, useWaitForTransactionReceipt } from "wagmi";
+import { useParams } from "next/navigation";
 import { QUORUM_ADDRESS } from "@/lib/wagmi";
 import { QUORUM_ABI } from "@/lib/abi";
 import { Nav } from "@/components/nav";
@@ -28,13 +28,10 @@ const STATE_BORDER: Record<0 | 1 | 2, string> = {
   2: "border-l-no-color",
 };
 
-export default function ProposalPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = use(params);
-  const proposalId = BigInt(id);
+export default function ProposalPage() {
+  const params = useParams();
+  const id = params?.id as string;
+  const proposalId = BigInt(id ?? "0");
   const { address, isConnected } = useAccount();
 
   const { data: proposalData, refetch } = useReadContract({
