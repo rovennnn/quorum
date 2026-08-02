@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import "@fontsource/libre-baskerville/400.css";
+@import "@fontsource/libre-baskerville/700.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+
+/* Typography pairing rationale:
+   Libre Baskerville (serif) for headings — evokes official documents,
+   diplomas, civic proceedings. Authoritative without being cold.
+   IBM Plex Sans for body and UI chrome — clean, professional, pairs
+   well with Baskerville's warmth without competing.
+   JetBrains Mono for addresses, hashes, counts — these are technical
+   data and must never render in a proportional font. */
+
+:root {
+  --font-display: "Libre Baskerville", Georgia, serif;
+  --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: #F5F0E8;
+  color: #1C1917;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.dark body {
+  background-color: #1C1917;
+  color: #EDE9E0;
+}
+
+::selection {
+  background: #3B6E52;
+  color: #F5F0E8;
+}
+
+/* Proposal state left-border treatment */
+.state-active  { border-left: 3px solid #A67C52; }
+.state-approved { border-left: 3px solid #3B6E52; }
+.state-rejected { border-left: 3px solid #8B3A2A; }
+
+/* Vote bar */
+.vote-bar-yes {
+  background-color: #3B6E52;
+  transition: width 0.4s ease;
+}
+.vote-bar-no {
+  background-color: #8B3A2A;
+  transition: width 0.4s ease;
+}
+
+/* Fade-in on mount */
+.fade-in {
+  animation: fadeIn 0.3s ease forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-in { animation: none; }
+  html { scroll-behavior: auto; }
+}
