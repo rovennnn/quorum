@@ -130,18 +130,20 @@ function ProposalDetail() {
     );
   }
 
-  // Safely extract fields — raw may be a tuple or object depending on wagmi version
-  const anyRaw = raw as unknown as Record<string, unknown>;
+  // wagmi returns a readonly tuple for multi-output Solidity functions.
+  // Access by index: [0]=id, [1]=proposer, [2]=title, [3]=description,
+  // [4]=deadline, [5]=yesVotes, [6]=noVotes, [7]=resolved, [8]=state
+  const tuple = raw as unknown as readonly unknown[];
 
-  const pid: bigint = (anyRaw.id as bigint) ?? proposalId;
-  const proposer: string = (anyRaw.proposer as string) ?? "";
-  const title: string = (anyRaw.title as string) ?? "";
-  const description: string = (anyRaw.description as string) ?? "";
-  const deadline: bigint = (anyRaw.deadline as bigint) ?? 0n;
-  const yesVotes: bigint = (anyRaw.yesVotes as bigint) ?? 0n;
-  const noVotes: bigint = (anyRaw.noVotes as bigint) ?? 0n;
-  const resolved: boolean = (anyRaw.resolved as boolean) ?? false;
-  const stateNum: number = (anyRaw.state as number) ?? 0;
+  const pid: bigint      = (tuple[0] as bigint)  ?? proposalId;
+  const proposer: string = (tuple[1] as string)  ?? "";
+  const title: string    = (tuple[2] as string)  ?? "";
+  const description: string = (tuple[3] as string) ?? "";
+  const deadline: bigint = (tuple[4] as bigint)  ?? 0n;
+  const yesVotes: bigint = (tuple[5] as bigint)  ?? 0n;
+  const noVotes: bigint  = (tuple[6] as bigint)  ?? 0n;
+  const resolved: boolean = (tuple[7] as boolean) ?? false;
+  const stateNum: number = (tuple[8] as number)  ?? 0;
 
   const proposal = {
     id: pid,
@@ -159,9 +161,10 @@ function ProposalDetail() {
   const pct = yesPercent(proposal);
   const total = proposal.yesVotes + proposal.noVotes;
 
-  const voteAny = voteRaw as Record<string, unknown> | undefined;
-  const hasVoted = (voteAny?.hasVoted as boolean) ?? false;
-  const votedYes = (voteAny?.votedYes as boolean) ?? false;
+  // getVote returns tuple: [0]=hasVoted, [1]=votedYes, [2]=weight
+  const voteTuple = voteRaw as unknown as readonly unknown[] | undefined;
+  const hasVoted = (voteTuple?.[0] as boolean) ?? false;
+  const votedYes = (voteTuple?.[1] as boolean) ?? false;
 
   const isActive = state === 0;
   const nowSec = BigInt(Math.floor(Date.now() / 1000));
@@ -330,4 +333,4 @@ export default function ProposalPage() {
       <ProposalDetail />
     </ErrorBoundary>
   );
-}
+          }
