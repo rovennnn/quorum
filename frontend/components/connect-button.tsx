@@ -64,11 +64,11 @@ export function ConnectButton() {
 
       {showModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 dark:bg-ink/60 px-4"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-ink/40 dark:bg-ink/60"
           onClick={() => setShowModal(false)}
         >
           <div
-            className="w-full max-w-sm bg-parchment dark:bg-[#1C1917] border border-ink/15 dark:border-[#EDE9E0]/15 p-5"
+            className="w-full sm:max-w-sm bg-parchment dark:bg-[#1C1917] border border-ink/15 dark:border-[#EDE9E0]/15 p-5 mb-0 sm:mb-0 rounded-t-lg sm:rounded-none"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
