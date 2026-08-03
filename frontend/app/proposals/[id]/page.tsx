@@ -1,13 +1,18 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
-import { useReadContract, useWriteContract, useAccount, useWaitForTransactionReceipt } from "wagmi";
 import { useParams } from "next/navigation";
+import {
+  useReadContract,
+  useWriteContract,
+  useAccount,
+  useWaitForTransactionReceipt,
+} from "wagmi";
 import { QUORUM_ADDRESS } from "@/lib/wagmi";
 import { QUORUM_ABI } from "@/lib/abi";
 import { Nav } from "@/components/nav";
 import {
-  Proposal,
   effectiveState,
   yesPercent,
   timeRemaining,
@@ -30,51 +35,107 @@ const STATE_BORDER: Record<0 | 1 | 2, string> = {
 
 export default function ProposalPage() {
   const params = useParams();
-  const id = params?.id as string;
-  const proposalId = BigInt(id ?? "0");
+  const rawId = params?.id;
+  const id = Array.isArray(rawId) ? rawId[0] : rawId ?? "1";
+
+  let proposalId: bigint;
+  try {
+    proposalId = BigInt(id);
+  } catch {
+    proposalId = 1n;
+  }
+
   const { address, isConnected } = useAccount();
 
-  const { data: proposalData, refetch } = useReadContract({
+  const { data: raw, refetch } = useReadContract({
     address: QUORUM_ADDRESS,
     abi: QUORUM_ABI,
     functionName: "proposals",
     args: [proposalId],
-    query: { refetchInterval: 10_000 },
+    query: { refetchInterval: 12_000, enabled: !!QUORUM_ADDRESS },
   });
 
-  const { data: voteData } = useReadContract({
+  const { data: voteRaw } = useReadContract({
     address: QUORUM_ADDRESS,
     abi: QUORUM_ABI,
     functionName: "getVote",
-    args: [proposalId, address ?? "0x0000000000000000000000000000000000000000"],
-    query: { enabled: !!address },
+    args: [
+      proposalId,
+      address ?? "0x0000000000000000000000000000000000000000",
+    ],
+    query: { enabled: !!address && !!QUORUM_ADDRESS },
   });
 
-  const { writeContract, data: txHash, isPending } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash: txHash });
+  const { writeContract, data: txHash, isPending, error: writeError } =
+    useWriteContract();
 
-  if (isConfirmed) refetch();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } =
+    useWaitForTransactionReceipt({ hash: txHash });
 
-  if (!proposalData) {
+  // Refetch after a confirmed tx — must be in useEffect, not inline
+  useEffect(() => {
+    if (isConfirmed) refetch();
+  }, [isConfirmed, refetch]);
+
+  // Loading state
+  if (!raw) {
     return (
       <>
         <Nav />
         <main className="mx-auto max-w-4xl px-6 py-10">
-          <div className="h-8 w-48 animate-pulse bg-ink/5" />
+          <Link
+            href="/"
+            className="font-mono text-xs text-ink/50 dark:text-[#EDE9E0]/50"
+          >
+            ← Proposals
+          </Link>
+          <div className="mt-6 space-y-3">
+            <div className="h-8 w-2/3 animate-pulse bg-ink/5 dark:bg-[#EDE9E0]/5" />
+            <div className="h-4 w-1/3 animate-pulse bg-ink/5 dark:bg-[#EDE9E0]/5" />
+          </div>
         </main>
       </>
     );
   }
 
-  const p = proposalData as unknown as Proposal;
-  const state = effectiveState(p);
-  const pct = yesPercent(p);
-  const total = p.yesVotes + p.noVotes;
-  const hasVoted = voteData ? (voteData as [boolean, boolean, bigint])[0] : false;
-  const votedYes = voteData ? (voteData as [boolean, boolean, bigint])[1] : false;
+  // wagmi returns a readonly tuple for multi-output functions — cast via unknown
+  const p = (raw as unknown) as {
+    id: bigint;
+    proposer: `0x${string}`;
+    title: string;
+    description: string;
+    deadline: bigint;
+    yesVotes: bigint;
+    noVotes: bigint;
+    resolved: boolean;
+    state: number;
+  };
+
+  const proposal = {
+    id: p.id,
+    proposer: p.proposer,
+    title: p.title,
+    description: p.description,
+    deadline: p.deadline,
+    yesVotes: p.yesVotes,
+    noVotes: p.noVotes,
+    resolved: p.resolved,
+    state: p.state as 0 | 1 | 2,
+  };
+
+  const state = effectiveState(proposal);
+  const pct = yesPercent(proposal);
+  const total = proposal.yesVotes + proposal.noVotes;
+
+  const vote = voteRaw as
+    | { hasVoted: boolean; votedYes: boolean; weight: bigint }
+    | undefined;
+  const hasVoted = vote?.hasVoted ?? false;
+  const votedYes = vote?.votedYes ?? false;
+
   const isActive = state === 0;
   const nowSec = BigInt(Math.floor(Date.now() / 1000));
-  const expired = nowSec >= p.deadline;
+  const expired = nowSec >= proposal.deadline;
 
   function castVote(yes: boolean) {
     writeContract({
@@ -105,58 +166,69 @@ export default function ProposalPage() {
           ← Proposals
         </Link>
 
-        <div className={`mt-6 border border-ink/10 dark:border-[#EDE9E0]/10 border-l-4 ${STATE_BORDER[state]} bg-white dark:bg-[#252119] px-6 py-6`}>
+        <div
+          className={`mt-6 border border-ink/10 dark:border-[#EDE9E0]/10 border-l-4 ${STATE_BORDER[state]} bg-white dark:bg-[#252119] px-6 py-6`}
+        >
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h1 className="font-display text-2xl font-bold text-ink dark:text-[#EDE9E0] leading-snug">
-                {p.title}
+                {proposal.title}
               </h1>
               <p className="mt-2 font-mono text-xs text-ink/45 dark:text-[#EDE9E0]/45">
-                Proposal #{String(p.id)} · by {shortenAddress(p.proposer)}
+                Proposal #{String(proposal.id)} · by{" "}
+                {shortenAddress(proposal.proposer)}
               </p>
             </div>
-            <span className={`border font-mono text-xs px-2 py-1 ${BADGE[state]}`}>
+            <span
+              className={`border font-mono text-xs px-2 py-1 ${BADGE[state]}`}
+            >
               {STATE_LABEL[state]}
             </span>
           </div>
 
           <p className="mt-5 font-body text-sm leading-relaxed text-ink/80 dark:text-[#EDE9E0]/80">
-            {p.description}
+            {proposal.description}
           </p>
 
-          {/* Vote bar */}
           <div className="mt-8">
             <div className="flex h-2 w-full overflow-hidden bg-ink/10 dark:bg-[#EDE9E0]/10">
               {total > 0n && (
                 <>
-                  <div className="vote-bar-yes h-full" style={{ width: `${pct}%` }} />
-                  <div className="vote-bar-no h-full" style={{ width: `${100 - pct}%` }} />
+                  <div
+                    className="vote-bar-yes h-full"
+                    style={{ width: `${pct}%` }}
+                  />
+                  <div
+                    className="vote-bar-no h-full"
+                    style={{ width: `${100 - pct}%` }}
+                  />
                 </>
               )}
             </div>
             <div className="mt-2 flex justify-between font-mono text-xs text-ink/55 dark:text-[#EDE9E0]/55">
               <span className="text-yes-color font-medium">
-                Yes — {pct}% ({formatVotes(p.yesVotes)} QRM)
+                Yes — {pct}% ({formatVotes(proposal.yesVotes)} QRM)
               </span>
               <span className="text-no-color font-medium">
-                No — {100 - pct}% ({formatVotes(p.noVotes)} QRM)
+                No — {100 - pct}% ({formatVotes(proposal.noVotes)} QRM)
               </span>
             </div>
             <p className="mt-1 font-mono text-xs text-ink/40 dark:text-[#EDE9E0]/40">
               {total > 0n
                 ? `${formatVotes(total)} QRM total · `
                 : "No votes yet · "}
-              {timeRemaining(p.deadline)}
+              {timeRemaining(proposal.deadline)}
             </p>
           </div>
 
-          {/* Vote actions */}
           {isConnected && isActive && (
             <div className="mt-6 border-t border-ink/10 dark:border-[#EDE9E0]/10 pt-5">
               {hasVoted ? (
                 <p className="font-mono text-xs text-ink/50 dark:text-[#EDE9E0]/50">
                   You voted{" "}
-                  <span className={votedYes ? "text-yes-color" : "text-no-color"}>
+                  <span
+                    className={votedYes ? "text-yes-color" : "text-no-color"}
+                  >
                     {votedYes ? "Yes" : "No"}
                   </span>
                   .
@@ -184,11 +256,15 @@ export default function ProposalPage() {
                   Vote confirmed on-chain.
                 </p>
               )}
+              {writeError && (
+                <p className="mt-2 font-mono text-xs text-no-color">
+                  {writeError.message.slice(0, 120)}
+                </p>
+              )}
             </div>
           )}
 
-          {/* Resolve action — show after deadline if not resolved */}
-          {expired && !p.resolved && (
+          {expired && !proposal.resolved && (
             <div className="mt-4 border-t border-ink/10 dark:border-[#EDE9E0]/10 pt-4">
               <p className="font-mono text-xs text-ink/50 dark:text-[#EDE9E0]/50 mb-2">
                 Voting period has ended. Anyone can trigger resolution.
@@ -210,7 +286,6 @@ export default function ProposalPage() {
           )}
         </div>
 
-        {/* On-chain metadata */}
         <div className="mt-4 border border-ink/8 dark:border-[#EDE9E0]/8 px-5 py-4">
           <p className="mb-2 font-mono text-xs uppercase tracking-widest text-ink/35 dark:text-[#EDE9E0]/35">
             On-chain record
@@ -218,15 +293,15 @@ export default function ProposalPage() {
           <dl className="space-y-1 font-mono text-xs text-ink/55 dark:text-[#EDE9E0]/55">
             <div className="flex gap-4">
               <dt className="w-24 shrink-0">proposer</dt>
-              <dd className="break-all">{p.proposer}</dd>
+              <dd className="break-all">{proposal.proposer}</dd>
             </div>
             <div className="flex gap-4">
               <dt className="w-24 shrink-0">deadline</dt>
-              <dd>{new Date(Number(p.deadline) * 1000).toUTCString()}</dd>
+              <dd>{new Date(Number(proposal.deadline) * 1000).toUTCString()}</dd>
             </div>
             <div className="flex gap-4">
               <dt className="w-24 shrink-0">resolved</dt>
-              <dd>{p.resolved ? "yes" : "no"}</dd>
+              <dd>{proposal.resolved ? "yes" : "no"}</dd>
             </div>
           </dl>
         </div>
