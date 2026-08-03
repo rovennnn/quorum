@@ -4,12 +4,23 @@ import { injected, walletConnect } from "wagmi/connectors";
 
 const sepoliaRpc = process.env.NEXT_PUBLIC_RPC_URL || "";
 
+// Get from https://cloud.walletconnect.com — free
+const wcProjectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID || "b56e18d47c72ab683b10814fe9495694";
+
 export const wagmiConfig = createConfig({
   chains: [sepolia, hardhat],
   connectors: [
     injected(),
-    // WalletConnect — add your projectId from https://cloud.walletconnect.com
-    // walletConnect({ projectId: process.env.NEXT_PUBLIC_WC_PROJECT_ID! }),
+    walletConnect({
+      projectId: wcProjectId,
+      metadata: {
+        name: "Quorum",
+        description: "Decentralized governance — vote on proposals on-chain.",
+        url: "https://try-quorum.vercel.app",
+        icons: [],
+      },
+      showQrModal: true,
+    }),
   ],
   transports: {
     [sepolia.id]: http(sepoliaRpc),
